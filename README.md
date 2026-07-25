@@ -63,8 +63,8 @@ deliveries across all connected consumers.
 
 ### One-command startup
 ```bash
-git clone <this-repo-url>
-cd my-async-service
+git clone https://github.com/divya9658/Asynchronous-Data-Ingestion-and-Processing-Service-with-Message-Queues
+cd Asynchronous-Data-Ingestion-and-Processing-Service-with-Message-Queues
 docker-compose up --build
 ```
 
