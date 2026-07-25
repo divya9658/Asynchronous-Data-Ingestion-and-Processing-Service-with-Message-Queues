@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - async_service_net
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_DB: processed_data
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d processed_data"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - async_service_net
+
+  producer_api:
+    build: ./producer-api
+    ports:
+      - "8080:8000"
+    env_file:
+      - ./producer-api/.env.example
+    environment:
+      MESSAGE_QUEUE_HOST: rabbitmq
+      MESSAGE_QUEUE_PORT: 5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - async_service_net
+
+  consumer_service:
+    build: ./consumer-service
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./consumer-service/.env.example
+    environment:
+      MESSAGE_QUEUE_HOST: rabbitmq
+      MESSAGE_QUEUE_PORT: 5672
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - async_service_net
+
+networks:
+  async_service_net:
+    driver: bridge
+
+volumes:
+  db_data:
